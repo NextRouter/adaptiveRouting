@@ -70,46 +70,18 @@ async fn run_nft_command(args: &[&str]) -> Result<Output, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // match change_nft("192.168.1.100", "wan1").await {
-    //     Ok(_) => {
-    //         println!("   永続化するには 'sudo nft list ruleset > /etc/nftables.conf' を実行してください。");
-    //     }
-    //     Err(e) => {
-    //         eprintln!("\n Err: {}", e);
-    //     }
-    // }
     loop {
         let result = get_nftables_config().await?;
-        println!(
-            "{}",
-            get_ip_nic_list(result.clone())
-        );
+        // println!(
+        //     "{}",
+        //     get_ip_nic_list(result.clone())
+        // );
 
         let ip_nic_list = get_ip_nic_list(result);
-        
-        // 指定したNICを使っているIPアドレスを出力
-        println!("\n=== NIC別IPアドレス ===");
-        let wan1_ips = get_ips_by_nic(&ip_nic_list, "wan1");
-        let wan2_ips = get_ips_by_nic(&ip_nic_list, "wan2");
-        
-        println!("wan1を使用しているIP: {:?}", wan1_ips);
-        println!("wan2を使用しているIP: {:?}", wan2_ips);
-        println!("======================\n");
-
-        let nic_list: Vec<String> = ["eth0", "eth1"].iter().map(|s| s.to_string()).collect();
 
         let ip_addresses: Vec<String> = ip_nic_list
             .as_object()
             .map(|obj| obj.keys().cloned().collect())
-            .unwrap_or_default();
-
-        let _nft_id: Vec<u64> = ip_nic_list
-            .as_object()
-            .map(|obj| {
-                obj.values()
-                    .filter_map(|v| v.get("id").and_then(|id| id.as_u64()))
-                    .collect()
-            })
             .unwrap_or_default();
 
         let mut packetloss_list = get_packetloss().await.expect("REASON");
@@ -117,41 +89,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
         for item in &packetloss_list {
             if ip_addresses.iter().any(|ip| item.contains(ip)) {
                 if let Some((ip, packetloss_str)) = item.split_once('=') {
-                    // println!("IP: {}", ip);
-                    // println!("Packetloss: {}", packetloss_str);
                     if let Ok(packetloss) = packetloss_str.parse::<f64>() {
                         if packetloss >= 10000.0 {
-                            if let Some(nic) = ip_nic_list
-                                .get(ip)
-                                .and_then(|v| v.get("nic"))
-                                .and_then(|n| n.as_str())
-                            {
-                                println!(
-                                    "<Packetloss too high> IP: {} Packetloss: {} Interface: {}",
-                                    ip, packetloss, nic
-                                );
+                            println!("IP: {} has high packet loss: {}", ip, packetloss);
+                            println!("{}", get_nic_by_ip(&ip_nic_list, ip).unwrap_or_default());
+                            for ips in &ip_addresses {
+                                if ips != ip {
+                                    print!("{} ", ips);
+                                    let available_wans = ["wan1", "wan2"];
+                                    let current_nic =
+                                        get_nic_by_ip(&ip_nic_list, ip).unwrap_or_default();
+                                    let change_nic = available_wans
+                                        .iter()
+                                        .find(|&&wan| wan != current_nic)
+                                        .unwrap_or(&"wan1");
 
-                                let other_nics: Vec<_> =
-                                    nic_list.iter().filter(|&n| *n != nic).collect();
-                                println!("Other available interfaces: {:?}", other_nics);
-                                println!("Use available interfaces: {:?}", nic_list.iter().filter(|&n| *n == nic).collect::<Vec<_>>());
-
-                                // ip_nic_listから現在のnicに関連するIPアドレスを取得
-                                let current_nic_ips: Vec<String> = ip_nic_list
-                                    .as_object()
-                                    .map(|obj| {
-                                        obj.iter()
-                                            .filter(|(_, v)| {
-                                                v.get("nic")
-                                                    .and_then(|n| n.as_str())
-                                                    .map(|n| n == nic)
-                                                    .unwrap_or(false)
-                                            })
-                                            .map(|(ip, _)| ip.clone())
-                                            .collect()
-                                    })
-                                    .unwrap_or_default();
-                                println!("IPs using interface {}: {:?}", nic, current_nic_ips);
+                                    match change_nft(ips, change_nic).await {
+                                        Ok(_) => {
+                                            println!("   永続化するには 'sudo nft list ruleset > /etc/nftables.conf' を実行してください。");
+                                        }
+                                        Err(e) => {
+                                            eprintln!("\n Err: {}", e);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -162,6 +123,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         sleep(Duration::from_secs(1)).await;
     }
+
+    Ok(())
 }
 
 async fn get_packetloss() -> Result<Vec<String>, Box<dyn Error>> {
@@ -178,10 +141,8 @@ async fn get_packetloss() -> Result<Vec<String>, Box<dyn Error>> {
         .await?
         .error_for_status()?;
 
-    // Parse the JSON response into a serde_json::Value
     let body: String = response.text().await?;
 
-    // Collect pairs of ip_address and value from: data.result[].{metric.ip_address, value[1]}
     let mut ip_packetloss = vec![];
 
     if let Ok(json) = serde_json::from_str::<Value>(&body) {
@@ -227,17 +188,17 @@ async fn get_nftables_config() -> Result<Value, Box<dyn Error>> {
 
 fn get_ip_nic_list(result: Value) -> Value {
     let mut ip_map = serde_json::Map::new();
-    
+
     // First, collect the sets and their elements
     let mut sets = std::collections::HashMap::new();
-    
+
     if let Some(entries) = result.get("nftables").and_then(|n| n.as_array()) {
         // Parse sets first
         for entry in entries {
             if let Some(set) = entry.get("set") {
                 let set_name = set.get("name").and_then(|n| n.as_str());
                 let elements = set.get("elem").and_then(|e| e.as_array());
-                
+
                 if let (Some(name), Some(elems)) = (set_name, elements) {
                     let ip_list: Vec<String> = elems
                         .iter()
@@ -247,7 +208,7 @@ fn get_ip_nic_list(result: Value) -> Value {
                 }
             }
         }
-        
+
         // Then parse rules
         for entry in entries {
             if let Some(rule) = entry.get("rule") {
@@ -265,7 +226,9 @@ fn get_ip_nic_list(result: Value) -> Value {
                                 }
                             }
                             // Check for set reference in saddr matching
-                            else if let Some(payload) = m.get("left").and_then(|l| l.get("payload")) {
+                            else if let Some(payload) =
+                                m.get("left").and_then(|l| l.get("payload"))
+                            {
                                 if payload.get("field").and_then(|f| f.as_str()) == Some("saddr") {
                                     set_reference = m.get("right").and_then(|r| r.as_str());
                                 }
@@ -285,10 +248,11 @@ fn get_ip_nic_list(result: Value) -> Value {
                     };
 
                     if let (Some(nic_name), Some(set_ref), Some(wan)) =
-                        (nic, set_reference, wan_interface) {
+                        (nic, set_reference, wan_interface)
+                    {
                         // Remove '@' prefix from set reference
                         let set_name = set_ref.trim_start_matches('@');
-                        
+
                         // Get IPs from the referenced set
                         if let Some(ip_list) = sets.get(set_name) {
                             for ip_addr in ip_list {
@@ -311,7 +275,7 @@ fn get_ip_nic_list(result: Value) -> Value {
 
 fn get_ips_by_nic(ip_nic_list: &Value, target_nic: &str) -> Vec<String> {
     let mut ips = Vec::new();
-    
+
     if let Some(obj) = ip_nic_list.as_object() {
         for (ip, info) in obj {
             if let Some(nic) = info.get("nic").and_then(|n| n.as_str()) {
@@ -321,6 +285,18 @@ fn get_ips_by_nic(ip_nic_list: &Value, target_nic: &str) -> Vec<String> {
             }
         }
     }
-    
+
     ips
+}
+
+fn get_nic_by_ip(ip_nic_list: &Value, ip_address: &str) -> Option<String> {
+    if let Some(obj) = ip_nic_list.as_object() {
+        if let Some(info) = obj.get(ip_address) {
+            return info
+                .get("nic")
+                .and_then(|n| n.as_str())
+                .map(|s| s.to_string());
+        }
+    }
+    None
 }
