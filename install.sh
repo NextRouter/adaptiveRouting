@@ -52,10 +52,7 @@ echo -e "${YELLOW}📦 依存関係をインストールしてビルド中...${N
 # OS検出
 if command -v apt-get >/dev/null 2>&1; then
     sudo apt update
-    sudo apt install -y libpcap-dev build-essential curl
-elif command -v yum >/dev/null 2>&1; then
-    sudo yum groupinstall -y "Development Tools"
-    sudo yum install -y libpcap-devel curl
+    sudo apt install -y libpcap-dev build-essential curl pkg-config
 fi
 
 # Rustチェック
