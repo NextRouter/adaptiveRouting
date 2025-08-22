@@ -1,4 +1,4 @@
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::{error::Error, sync::OnceLock, time::Duration};
 use tokio::process::Command;
 use tokio::time::sleep;
@@ -18,7 +18,7 @@ fn http_client() -> &'static reqwest::Client {
 async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         let result = get_nftables_config().await?;
-        println!("{:?}", get_ip_nic_list(result.clone()));
+        // println!("{:?}", get_ip_nic_list(result.clone()));
 
         let ip_nic_list = get_ip_nic_list(result);
         let ip_addresses: Vec<String> = ip_nic_list
@@ -29,10 +29,39 @@ async fn main() -> Result<(), Box<dyn Error>> {
             })
             .collect();
 
+        let nic_list: Vec<String> = ["eth0","eth1"].iter().map(|s| s.to_string()).collect();
+
+        let ip_list: Vec<String> = ip_nic_list
+            .iter()
+            .filter_map(|item| {
+                // コロンで分割してIPアドレス部分を取得
+                item.split(':').nth(1).map(|ip| ip.to_string())
+            })
+            .collect();
+
         let mut packetloss_list = get_packetloss().await.expect("REASON");
         for item in &packetloss_list {
             if ip_addresses.iter().any(|ip| item.contains(ip)) {
-                println!("{:?}", item);
+                if let Some((ip, packetloss_str)) = item.split_once('=') {
+                    // println!("IP: {}", ip);
+                    // println!("Packetloss: {}", packetloss_str);
+                    if let Ok(packetloss) = packetloss_str.parse::<f64>() {
+                        if packetloss >= 10000.0 {
+                            let nic = ip_nic_list
+                                .iter()
+                                .find(|&item| item.contains(ip))
+                                .and_then(|item| item.split(':').next())
+                                .unwrap_or("unknown");
+                            println!("<Packetloss too high> IP: {} Packetloss: {} Interface: {}", ip, packetloss,nic);
+
+                            let other_nics: Vec<_> = nic_list
+                                .iter()
+                                .filter(|&n| n != nic)
+                                .collect();
+                            println!("Other available interfaces: {:?}", other_nics);
+                        }
+                    }
+                }
             }
         }
 
