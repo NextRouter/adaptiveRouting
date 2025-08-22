@@ -85,71 +85,80 @@ async fn main() -> Result<(), Box<dyn Error>> {
             get_ip_nic_list(result.clone())
         );
 
-        // let ip_nic_list = get_ip_nic_list(result);
+        let ip_nic_list = get_ip_nic_list(result);
+        
+        // 指定したNICを使っているIPアドレスを出力
+        println!("\n=== NIC別IPアドレス ===");
+        let wan1_ips = get_ips_by_nic(&ip_nic_list, "wan1");
+        let wan2_ips = get_ips_by_nic(&ip_nic_list, "wan2");
+        
+        println!("wan1を使用しているIP: {:?}", wan1_ips);
+        println!("wan2を使用しているIP: {:?}", wan2_ips);
+        println!("======================\n");
 
-        // let nic_list: Vec<String> = ["eth0", "eth1"].iter().map(|s| s.to_string()).collect();
+        let nic_list: Vec<String> = ["eth0", "eth1"].iter().map(|s| s.to_string()).collect();
 
-        // let ip_addresses: Vec<String> = ip_nic_list
-        //     .as_object()
-        //     .map(|obj| obj.keys().cloned().collect())
-        //     .unwrap_or_default();
+        let ip_addresses: Vec<String> = ip_nic_list
+            .as_object()
+            .map(|obj| obj.keys().cloned().collect())
+            .unwrap_or_default();
 
-        // let _nft_id: Vec<u64> = ip_nic_list
-        //     .as_object()
-        //     .map(|obj| {
-        //         obj.values()
-        //             .filter_map(|v| v.get("id").and_then(|id| id.as_u64()))
-        //             .collect()
-        //     })
-        //     .unwrap_or_default();
+        let _nft_id: Vec<u64> = ip_nic_list
+            .as_object()
+            .map(|obj| {
+                obj.values()
+                    .filter_map(|v| v.get("id").and_then(|id| id.as_u64()))
+                    .collect()
+            })
+            .unwrap_or_default();
 
-        // let mut packetloss_list = get_packetloss().await.expect("REASON");
+        let mut packetloss_list = get_packetloss().await.expect("REASON");
 
-        // for item in &packetloss_list {
-        //     if ip_addresses.iter().any(|ip| item.contains(ip)) {
-        //         if let Some((ip, packetloss_str)) = item.split_once('=') {
-        //             // println!("IP: {}", ip);
-        //             // println!("Packetloss: {}", packetloss_str);
-        //             if let Ok(packetloss) = packetloss_str.parse::<f64>() {
-        //                 if packetloss >= 10000.0 {
-        //                     if let Some(nic) = ip_nic_list
-        //                         .get(ip)
-        //                         .and_then(|v| v.get("nic"))
-        //                         .and_then(|n| n.as_str())
-        //                     {
-        //                         println!(
-        //                             "<Packetloss too high> IP: {} Packetloss: {} Interface: {}",
-        //                             ip, packetloss, nic
-        //                         );
+        for item in &packetloss_list {
+            if ip_addresses.iter().any(|ip| item.contains(ip)) {
+                if let Some((ip, packetloss_str)) = item.split_once('=') {
+                    // println!("IP: {}", ip);
+                    // println!("Packetloss: {}", packetloss_str);
+                    if let Ok(packetloss) = packetloss_str.parse::<f64>() {
+                        if packetloss >= 10000.0 {
+                            if let Some(nic) = ip_nic_list
+                                .get(ip)
+                                .and_then(|v| v.get("nic"))
+                                .and_then(|n| n.as_str())
+                            {
+                                println!(
+                                    "<Packetloss too high> IP: {} Packetloss: {} Interface: {}",
+                                    ip, packetloss, nic
+                                );
 
-        //                         let other_nics: Vec<_> =
-        //                             nic_list.iter().filter(|&n| *n != nic).collect();
-        //                         println!("Other available interfaces: {:?}", other_nics);
-        //                         println!("Use available interfaces: {:?}", nic_list.iter().filter(|&n| *n == nic).collect::<Vec<_>>());
+                                let other_nics: Vec<_> =
+                                    nic_list.iter().filter(|&n| *n != nic).collect();
+                                println!("Other available interfaces: {:?}", other_nics);
+                                println!("Use available interfaces: {:?}", nic_list.iter().filter(|&n| *n == nic).collect::<Vec<_>>());
 
-        //                         // ip_nic_listから現在のnicに関連するIPアドレスを取得
-        //                         let current_nic_ips: Vec<String> = ip_nic_list
-        //                             .as_object()
-        //                             .map(|obj| {
-        //                                 obj.iter()
-        //                                     .filter(|(_, v)| {
-        //                                         v.get("nic")
-        //                                             .and_then(|n| n.as_str())
-        //                                             .map(|n| n == nic)
-        //                                             .unwrap_or(false)
-        //                                     })
-        //                                     .map(|(ip, _)| ip.clone())
-        //                                     .collect()
-        //                             })
-        //                             .unwrap_or_default();
-        //                         println!("IPs using interface {}: {:?}", nic, current_nic_ips);
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-        // packetloss_list.clear();
+                                // ip_nic_listから現在のnicに関連するIPアドレスを取得
+                                let current_nic_ips: Vec<String> = ip_nic_list
+                                    .as_object()
+                                    .map(|obj| {
+                                        obj.iter()
+                                            .filter(|(_, v)| {
+                                                v.get("nic")
+                                                    .and_then(|n| n.as_str())
+                                                    .map(|n| n == nic)
+                                                    .unwrap_or(false)
+                                            })
+                                            .map(|(ip, _)| ip.clone())
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+                                println!("IPs using interface {}: {:?}", nic, current_nic_ips);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        packetloss_list.clear();
 
         sleep(Duration::from_secs(1)).await;
     }
@@ -159,7 +168,7 @@ async fn get_packetloss() -> Result<Vec<String>, Box<dyn Error>> {
     let prometheus_url = "http://localhost:9090/api/v1/query";
     let query = r#"{job="localpacketdump",__name__=~"network_ip_window_size_changes_per_sec"}"#;
 
-    let client = http_client();
+    let client = reqwest::Client::new();
 
     let response = client
         .get(prometheus_url)
@@ -170,7 +179,7 @@ async fn get_packetloss() -> Result<Vec<String>, Box<dyn Error>> {
         .error_for_status()?;
 
     // Parse the JSON response into a serde_json::Value
-    let body = response.text().await?;
+    let body: String = response.text().await?;
 
     // Collect pairs of ip_address and value from: data.result[].{metric.ip_address, value[1]}
     let mut ip_packetloss = vec![];
@@ -298,4 +307,20 @@ fn get_ip_nic_list(result: Value) -> Value {
         }
     }
     serde_json::Value::Object(ip_map)
+}
+
+fn get_ips_by_nic(ip_nic_list: &Value, target_nic: &str) -> Vec<String> {
+    let mut ips = Vec::new();
+    
+    if let Some(obj) = ip_nic_list.as_object() {
+        for (ip, info) in obj {
+            if let Some(nic) = info.get("nic").and_then(|n| n.as_str()) {
+                if nic == target_nic {
+                    ips.push(ip.clone());
+                }
+            }
+        }
+    }
+    
+    ips
 }
