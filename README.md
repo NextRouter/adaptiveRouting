@@ -4,6 +4,12 @@
 
 ## 🚀 クイックスタート
 
+### ワンコマンドで実行
+
+```bash
+curl -sSL https://raw.githubusercontent.com/NextRouter/adaptiveRouting/main/install.sh | bash
+```
+
 ### 手動インストールと実行
 
 ```bash
