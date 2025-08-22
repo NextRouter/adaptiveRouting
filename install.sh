@@ -52,7 +52,7 @@ echo -e "${YELLOW}📦 依存関係をインストールしてビルド中...${N
 # OS検出
 if command -v apt-get >/dev/null 2>&1; then
     sudo apt update
-    sudo apt install -y libpcap-dev build-essential curl pkg-config
+    sudo apt install -y libpcap-dev libssl-dev build-essential curl pkg-config
 fi
 
 # Rustチェック
