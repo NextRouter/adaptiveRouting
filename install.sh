@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# adaptive-routing - ワンライナーインストールスクリプト
+# Adaptive Routing - ワンライナーインストールスクリプト (systemd自動選択版)
 set -e
 
 # カラー定義
@@ -42,7 +42,7 @@ fi
 
 # セットアップ実行
 echo -e "${GREEN}🛠️ セットアップを開始...${NC}"
-chmod +x run.sh setup-systemd.sh
+chmod +x setup-systemd.sh
 
 # --- ユーザー選択部分を削除し、systemd登録処理を直接実行 ---
 echo -e "${GREEN}🔧 systemdサービスとして登録します...${NC}"
