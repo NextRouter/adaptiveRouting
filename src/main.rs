@@ -70,6 +70,16 @@ async fn run_nft_command(args: &[&str]) -> Result<Output, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let result = get_nftables_config().await?;
+    let ip_nic_list = get_ip_nic_list(result);
+    println!("\n=== NIC別IPアドレス ===");
+    let wan1_ips = get_ips_by_nic(&ip_nic_list, "wan1");
+    let wan2_ips = get_ips_by_nic(&ip_nic_list, "wan2");
+
+    println!("wan1を使用しているIP: {:?}", wan1_ips);
+    println!("wan2を使用しているIP: {:?}", wan2_ips);
+    println!("======================\n");
+
     loop {
         let result = get_nftables_config().await?;
         // println!(
@@ -93,7 +103,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         if packetloss >= 10000.0 {
                             println!("IP: {} has high packet loss: {}", ip, packetloss);
                             println!("{}", get_nic_by_ip(&ip_nic_list, ip).unwrap_or_default());
-                            for ips in &ip_addresses {
+                            for ips in &get_ips_by_nic(
+                                &ip_nic_list,
+                                &get_nic_by_ip(&ip_nic_list, ip).unwrap_or_default(),
+                            ) {
                                 if ips != ip {
                                     print!("{} ", ips);
                                     let available_wans = ["wan1", "wan2"];
