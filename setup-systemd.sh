@@ -54,7 +54,7 @@ StandardError=journal
 # Security settings
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome=false
 ReadWritePaths=/tmp
 
 [Install]
